@@ -15,3 +15,5 @@ safe_conn = mongodb_proxy.MongoProxy(pymongo.MongoReplicaSetClient(replicaSet='b
 
 safe_conn.blogs.posts.insert(post)
 
+**See here for more details:**
+http://www.arngarden.com/2013/04/29/handling-mongodb-autoreconnect-exceptions-in-python-using-a-proxy/
