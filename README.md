@@ -12,5 +12,6 @@ import pymongo
 import mongodb_proxy
 
 safe_conn = mongodb_proxy.MongoProxy(pymongo.MongoReplicaSetClient(replicaSet='blog_rs')
+
 safe_conn.blogs.posts.insert(post)
 
