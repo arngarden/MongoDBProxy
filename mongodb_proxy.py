@@ -41,6 +41,14 @@ class Executable:
     def __call__(self, *args, **kwargs):
         return self.method(*args, **kwargs)
 
+    def __dir__(self):
+        return dir(self.method)
+
+    def __str__(self):
+        return self.method.__str__()
+
+    def __repr__(self):
+        return self.method.__repr__()
 
 class MongoProxy:
     """ Proxy for MongoDB connection.
@@ -81,6 +89,9 @@ class MongoProxy:
 
     def __dir__(self):
         return dir(self.conn)
+
+    def __str__(self):
+        return self.conn.__str__()
 
     def __repr__(self):
         return self.conn.__repr__()
