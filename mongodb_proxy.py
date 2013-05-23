@@ -2,9 +2,15 @@
 import time
 import pymongo
 
-EXECUTABLE_MONGO_METHODS = set([typ for typ in dir(pymongo.collection.Collection) if not typ.startswith('_')])
-EXECUTABLE_MONGO_METHODS.update(set([typ for typ in dir(pymongo.Connection) if not typ.startswith('_')]))
-EXECUTABLE_MONGO_METHODS.update(set([typ for typ in dir(pymongo) if not typ.startswith('_')]))
+def get_methods(obj):
+    attrs = (attr for attr in dir(obj))
+    attrs = (attr for attr in attrs if not attr.startswith('_'))
+    return set([attr for attr in attrs if hasattr(getattr(obj, attr), '__call__')])
+
+EXECUTABLE_MONGO_METHODS = get_methods(pymongo.collection.Collection)
+EXECUTABLE_MONGO_METHODS.update(get_methods(pymongo.Connection))
+EXECUTABLE_MONGO_METHODS.update(get_methods(pymongo))
+
 
 def safe_mongocall(call):
     """ Decorator for automatic handling of AutoReconnect-exceptions.
@@ -53,20 +59,22 @@ class MongoProxy:
         named "key".
         
         """
-        attr = getattr(self.conn, key)
-        if hasattr(attr, '__call__'):
-            return MongoProxy(attr)
-        return attr
-    
+        item = self.conn[key]
+        if hasattr(item, '__call__'):
+            return MongoProxy(item)
+        return item
+
     def __getattr__(self, key):
         """ If key is the name of an executable method in the MongoDB connection,
         for instance find or insert, wrap this method in Executable-class that
         handles AutoReconnect-Exception.
 
         """
-        if key in EXECUTABLE_MONGO_METHODS:
-            return Executable(getattr(self.conn, key))
-        return self[key]
+        
+        attr = getattr(self.conn, key)
+        if hasattr(attr, '__call__') and key in EXECUTABLE_MONGO_METHODS:
+            return Executable(attr)
+        return attr
 
     def __call__(self, *args, **kwargs):
         return self.conn(*args, **kwargs)
