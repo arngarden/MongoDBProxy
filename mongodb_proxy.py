@@ -53,7 +53,10 @@ class MongoProxy:
         named "key".
         
         """
-        return MongoProxy(getattr(self.conn, key))
+        attr = getattr(self.conn, key)
+        if hasattr(attr, '__call__'):
+            return MongoProxy(attr)
+        return attr
     
     def __getattr__(self, key):
         """ If key is the name of an executable method in the MongoDB connection,
