@@ -17,3 +17,8 @@ safe_conn.blogs.posts.insert(post)
 
 **See here for more details:**
 http://www.arngarden.com/2013/04/29/handling-mongodb-autoreconnect-exceptions-in-python-using-a-proxy/
+
+
+**Contributors**:
+
+Jonathan Kamens (https://github.com/jikamens)
