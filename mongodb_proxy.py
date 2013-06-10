@@ -2,6 +2,9 @@
 import time
 import pymongo
 
+import logging
+logger = logging.getLogger(__name__)
+
 def get_methods(*objs):
     return set(
         attr
@@ -25,7 +28,7 @@ def safe_mongocall(call):
             try:
                 return call(*args, **kwargs)
             except pymongo.errors.AutoReconnect:
-                print 'AutoReconnecting, try %d' % i
+                logger.warning('AutoReconnecting, try %d' % i)
                 time.sleep(pow(2, i))
         # Try one more time, but this time, if it fails, let the
         # exception bubble up to the caller.
