@@ -2,14 +2,18 @@
 import time
 import pymongo
 
-def get_methods(obj):
-    attrs = (attr for attr in dir(obj))
-    attrs = (attr for attr in attrs if not attr.startswith('_'))
-    return set([attr for attr in attrs if hasattr(getattr(obj, attr), '__call__')])
+def get_methods(*objs):
+    return set(
+        attr
+        for obj in objs
+        for attr in dir(obj)
+        if not attr.startswith('_')
+           and hasattr(getattr(obj, attr), '__call__')
+    )
 
-EXECUTABLE_MONGO_METHODS = get_methods(pymongo.collection.Collection)
-EXECUTABLE_MONGO_METHODS.update(get_methods(pymongo.Connection))
-EXECUTABLE_MONGO_METHODS.update(get_methods(pymongo))
+EXECUTABLE_MONGO_METHODS = get_methods(pymongo.collection.Collection,
+                                       pymongo.Connection,
+                                       pymongo)
 
 
 def safe_mongocall(call):
