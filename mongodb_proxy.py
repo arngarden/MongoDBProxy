@@ -2,31 +2,18 @@
 import time
 import pymongo
 
-def get_methods(obj):
-    attrs = (attr for attr in dir(obj))
-    attrs = (attr for attr in attrs if not attr.startswith('_'))
-    return set([attr for attr in attrs if hasattr(getattr(obj, attr), '__call__')])
+def get_methods(*objs):
+    return set(
+        attr
+        for obj in objs
+        for attr in dir(obj)
+        if not attr.startswith('_')
+           and hasattr(getattr(obj, attr), '__call__')
+    )
 
-EXECUTABLE_MONGO_METHODS = get_methods(pymongo.collection.Collection)
-EXECUTABLE_MONGO_METHODS.update(get_methods(pymongo.Connection))
-EXECUTABLE_MONGO_METHODS.update(get_methods(pymongo))
-
-
-def safe_mongocall(call):
-    """ Decorator for automatic handling of AutoReconnect-exceptions.
-    """
-
-    def _safe_mongocall(*args, **kwargs):
-        for i in xrange(4):
-            try:
-                return call(*args, **kwargs)
-            except pymongo.errors.AutoReconnect:
-                print 'AutoReconnecting, try %d' % i
-                time.sleep(pow(2, i))
-        # Try one more time, but this time, if it fails, let the
-        # exception bubble up to the caller.
-        return call(*args, **kwargs)
-    return _safe_mongocall
+EXECUTABLE_MONGO_METHODS = get_methods(pymongo.collection.Collection,
+                                       pymongo.Connection,
+                                       pymongo)
 
 
 class Executable:
@@ -34,11 +21,21 @@ class Executable:
     using the safe_mongocall decorator.
     """
 
-    def __init__(self, method):
+    def __init__(self, method, logger):
         self.method = method
+        self.logger = logger
 
-    @safe_mongocall
     def __call__(self, *args, **kwargs):
+        """ Automatic handling of AutoReconnect-exceptions.
+        """
+        for i in xrange(4):
+            try:
+                return self.method(*args, **kwargs)
+            except pymongo.errors.AutoReconnect:
+                self.logger.warning('AutoReconnecting, try %d' % i)
+                time.sleep(pow(2, i))
+        # Try one more time, but this time, if it fails, let the
+        # exception bubble up to the caller.
         return self.method(*args, **kwargs)
 
     def __dir__(self):
@@ -56,16 +53,22 @@ class MongoProxy:
     Executable-instance that handles AutoReconnect-exceptions transparently.
 
     """
-    def __init__(self, conn):
+    def __init__(self, conn, logger=None):
         """ conn is an ordinary MongoDB-connection.
-        
+
         """
+        if logger is None:
+            import logging
+            logger = logging.getLogger(__name__)
+
         self.conn = conn
-       
+        self.logger = logger
+
+
     def __getitem__(self, key):
         """ Create and return proxy around the method in the connection
         named "key".
-        
+
         """
         item = self.conn[key]
         if hasattr(item, '__call__'):
@@ -78,10 +81,10 @@ class MongoProxy:
         handles AutoReconnect-Exception.
 
         """
-        
+
         attr = getattr(self.conn, key)
         if hasattr(attr, '__call__') and key in EXECUTABLE_MONGO_METHODS:
-            return Executable(attr)
+            return Executable(attr, self.logger)
         return attr
 
     def __call__(self, *args, **kwargs):
