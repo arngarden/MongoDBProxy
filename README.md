@@ -9,6 +9,7 @@ about handling AutoReconnects by yourself.
 Usage:
 
 import pymongo
+
 import mongodb_proxy
 
 safe_conn = mongodb_proxy.MongoProxy(pymongo.MongoReplicaSetClient(replicaSet='blog_rs')
@@ -22,4 +23,5 @@ http://www.arngarden.com/2013/04/29/handling-mongodb-autoreconnect-exceptions-in
 **Contributors**:
 
 Jonathan Kamens (https://github.com/jikamens)
+
 Michael Cetrulo (https://github.com/git2samus)
