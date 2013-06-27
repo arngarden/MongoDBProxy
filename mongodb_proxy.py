@@ -83,8 +83,11 @@ class MongoProxy:
         """
 
         attr = getattr(self.conn, key)
-        if hasattr(attr, '__call__') and key in EXECUTABLE_MONGO_METHODS:
-            return Executable(attr, self.logger)
+        if hasattr(attr, '__call__'):
+            if key in EXECUTABLE_MONGO_METHODS:
+                return Executable(attr, self.logger)
+            else:
+                return MongoProxy(attr)
         return attr
 
     def __call__(self, *args, **kwargs):
