@@ -21,19 +21,28 @@ class Executable:
     using the safe_mongocall decorator.
     """
 
-    def __init__(self, method, logger):
+    def __init__(self, method, logger, wait_time=None):
         self.method = method
         self.logger = logger
+        self.wait_time = wait_time or 60
 
     def __call__(self, *args, **kwargs):
         """ Automatic handling of AutoReconnect-exceptions.
         """
-        for i in xrange(4):
+        start = time.time()
+        i = 0
+        while True:
             try:
                 return self.method(*args, **kwargs)
             except pymongo.errors.AutoReconnect:
-                self.logger.warning('AutoReconnecting, try %d' % i)
+                end = time.time()
+                delta = end - start
+                if delta >= self.wait_time:
+                    break
+                self.logger.warning('AutoReconnecting, try %d (%.1f seconds)'
+                                    % (i, delta))
                 time.sleep(pow(2, i))
+                i += 1
         # Try one more time, but this time, if it fails, let the
         # exception bubble up to the caller.
         return self.method(*args, **kwargs)
@@ -53,7 +62,7 @@ class MongoProxy:
     Executable-instance that handles AutoReconnect-exceptions transparently.
 
     """
-    def __init__(self, conn, logger=None):
+    def __init__(self, conn, logger=None, wait_time=None):
         """ conn is an ordinary MongoDB-connection.
 
         """
@@ -63,6 +72,7 @@ class MongoProxy:
 
         self.conn = conn
         self.logger = logger
+        self.wait_time = wait_time
 
 
     def __getitem__(self, key):
@@ -83,8 +93,11 @@ class MongoProxy:
         """
 
         attr = getattr(self.conn, key)
-        if hasattr(attr, '__call__') and key in EXECUTABLE_MONGO_METHODS:
-            return Executable(attr, self.logger)
+        if hasattr(attr, '__call__'):
+            if key in EXECUTABLE_MONGO_METHODS:
+                return Executable(attr, self.logger, self.wait_time)
+            else:
+                return MongoProxy(attr)
         return attr
 
     def __call__(self, *args, **kwargs):
