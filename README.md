@@ -25,3 +25,5 @@ http://www.arngarden.com/2013/04/29/handling-mongodb-autoreconnect-exceptions-in
 Jonathan Kamens (https://github.com/jikamens)
 
 Michael Cetrulo (https://github.com/git2samus)
+
+Richard Frank (https://github.com/richafrank)
