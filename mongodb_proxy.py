@@ -97,7 +97,7 @@ class MongoProxy:
         """
         item = self.conn[key]
         if hasattr(item, '__call__'):
-            return MongoProxy(item)
+            return MongoProxy(item, self.logger, self.wait_time)
         return item
 
     def __getattr__(self, key):
@@ -112,7 +112,7 @@ class MongoProxy:
             if key in EXECUTABLE_MONGO_METHODS:
                 return Executable(attr, self.logger, self.wait_time)
             else:
-                return MongoProxy(attr)
+                return MongoProxy(attr, self.logger, self.wait_time)
         return attr
 
     def __call__(self, *args, **kwargs):
