@@ -26,8 +26,17 @@ def get_methods(*objs):
            and hasattr(getattr(obj, attr), '__call__')
     )
 
+try:
+    # will fail to import from older versions of pymongo
+    from pymongo import MongoClient, MongoReplicaSetClient
+except ImportError:
+    MongoClient, MongoReplicaSetClient = None, None
+
 EXECUTABLE_MONGO_METHODS = get_methods(pymongo.collection.Collection,
+                                       pymongo.database.Database,
                                        pymongo.Connection,
+                                       pymongo.ReplicaSetConnection,
+                                       MongoClient, MongoReplicaSetClient,
                                        pymongo)
 
 
