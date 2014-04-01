@@ -38,14 +38,13 @@ except ImportError:
 setup(
     name='MongoDBProxy',
     py_modules=['mongodb_proxy'],
-#    version='',
+    version='0.1.0',
     description='Proxy around MongoDB connection that automatically handles AutoReconnect exceptions.',
-#    author='',
-#    author_email='',
+    author='Gustav Arngarden',
     long_description=LONG_DESCRIPTION,
-#    license='',
-#    classifiers=[
-#    ],
+    classifiers=[
+        'License :: OSI Approved :: Apache Software License',
+    ],
     setup_requires=['pyandoc'],
     install_requires=['pymongo'],
     url="https://github.com/arngarden/MongoDBProxy"
