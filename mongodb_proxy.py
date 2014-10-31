@@ -14,127 +14,107 @@ Copyright 2013 Gustav Arngarden
    limitations under the License.
 """
 
-import time
+from functools import wraps
+import logging
 import pymongo
+import time
 
-def get_methods(*objs):
-    return set(
-        attr
-        for obj in objs
-        for attr in dir(obj)
-        if not attr.startswith('_')
-           and hasattr(getattr(obj, attr), '__call__')
-    )
+log = logging.getLogger(__name__)
 
-try:
-    # will fail to import from older versions of pymongo
-    from pymongo import MongoClient, MongoReplicaSetClient
-except ImportError:
-    MongoClient, MongoReplicaSetClient = None, None
-
-EXECUTABLE_MONGO_METHODS = get_methods(pymongo.collection.Collection,
-                                       pymongo.database.Database,
-                                       pymongo.Connection,
-                                       pymongo.ReplicaSetConnection,
-                                       MongoClient, MongoReplicaSetClient,
-                                       pymongo)
+MONGO_METHODS_NEEDING_RETRY = {
+    pymongo.collection.Collection: [
+        'aggregate', 'ensure_index', 'find', 'group', 'inline_map_reduce', 'map_reduce', 'parallel_scan'
+    ],
+}
 
 
-class Executable:
-    """ Wrap a MongoDB-method and handle AutoReconnect-exceptions
-    using the safe_mongocall decorator.
+def autoretry_read(wait=0.1, tries=5):
     """
+    Automatically retry a read-only method in the case of a pymongo
+    AutoReconnect exception.
 
-    def __init__(self, method, logger, wait_time=None):
-        self.method = method
-        self.logger = logger
-        self.wait_time = wait_time or 60
+    This decorator can/should be used around methods which iterate mongo cursors.
 
-    def __call__(self, *args, **kwargs):
-        """ Automatic handling of AutoReconnect-exceptions.
-        """
-        start = time.time()
-        i = 0
-        while True:
-            try:
-                return self.method(*args, **kwargs)
-            except pymongo.errors.AutoReconnect:
-                end = time.time()
-                delta = end - start
-                if delta >= self.wait_time:
-                    break
-                self.logger.warning('AutoReconnecting, try %d (%.1f seconds)'
-                                    % (i, delta))
-                time.sleep(pow(2, i))
-                i += 1
-        # Try one more time, but this time, if it fails, let the
-        # exception bubble up to the caller.
-        return self.method(*args, **kwargs)
+    See http://emptysqua.re/blog/save-the-monkey-reliably-writing-to-mongodb/
+    for a discussion of this technique.
+    """
+    def decorate(func):  # pylint: disable=missing-docstring
+        @wraps(func)
+        def wrapper(*args, **kwargs):  # pylint: disable=missing-docstring
+            for attempt in xrange(tries):
+                try:
+                    return func(*args, **kwargs)
+                except pymongo.errors.AutoReconnect:
+                    log.exception('Attempt {0}'.format(attempt))
+                    # Reraise if we failed on our last attempt
+                    if attempt == tries - 1:
+                        raise
 
-    def __dir__(self):
-        return dir(self.method)
+                    if wait:
+                        time.sleep(wait)
+        return wrapper
+    return decorate
 
-    def __str__(self):
-        return self.method.__str__()
-
-    def __repr__(self):
-        return self.method.__repr__()
 
 class MongoProxy:
-    """ Proxy for MongoDB connection.
+    """
+    Proxy for MongoDB connection.
     Methods that are executable, i.e find, insert etc, get wrapped in an
     Executable-instance that handles AutoReconnect-exceptions transparently.
-
     """
-    def __init__(self, conn, logger=None, wait_time=None):
-        """ conn is an ordinary MongoDB-connection.
-
+    def __init__(self, proxied_object, wait_time=None, methods_needing_retry=None):
         """
-        if logger is None:
-            import logging
-            logger = logging.getLogger(__name__)
-
-        self.conn = conn
-        self.logger = logger
+        proxied_object is an ordinary MongoDB-connection.
+        """
+        self.proxied_object = proxied_object
         self.wait_time = wait_time
-
+        self.methods_needing_retry = methods_needing_retry or MONGO_METHODS_NEEDING_RETRY
 
     def __getitem__(self, key):
-        """ Create and return proxy around the method in the connection
-        named "key".
-
         """
-        item = self.conn[key]
+        Create and return proxy around attribute "key" if it is a method.
+        Otherwise just return the attribute.
+        """
+        item = self.proxied_object[key]
         if hasattr(item, '__call__'):
-            return MongoProxy(item, self.logger, self.wait_time)
+            return MongoProxy(item, self.wait_time)
         return item
 
+    def __setitem__(self, key, value):
+        self.proxied_object[key] = value
+
+    def __delitem__(self, key):
+        del self.proxied_object[key]
+
+    def __len__(self):
+        return len(self.proxied_object)
+
     def __getattr__(self, key):
-        """ If key is the name of an executable method in the MongoDB connection,
-        for instance find or insert, wrap this method in Executable-class that
-        handles AutoReconnect-Exception.
-
         """
-
-        attr = getattr(self.conn, key)
+        If key is the name of an executable method in the MongoDB connection,
+        for instance find, wrap this method in the autoretry_read decorator
+        that handles AutoReconnect exceptions. Otherwise wrap it in a MongoProxy object.
+        """
+        attr = getattr(self.proxied_object, key)
         if hasattr(attr, '__call__'):
-            if key in EXECUTABLE_MONGO_METHODS:
-                return Executable(attr, self.logger, self.wait_time)
+            attributes_for_class = self.methods_needing_retry.get(self.proxied_object.__class__, [])
+            if key in attributes_for_class:
+                return autoretry_read(self.wait_time)(attr)
             else:
-                return MongoProxy(attr, self.logger, self.wait_time)
+                return MongoProxy(attr, self.wait_time)
         return attr
 
     def __call__(self, *args, **kwargs):
-        return self.conn(*args, **kwargs)
+        return self.proxied_object(*args, **kwargs)
 
     def __dir__(self):
-        return dir(self.conn)
+        return dir(self.proxied_object)
 
     def __str__(self):
-        return self.conn.__str__()
+        return self.proxied_object.__str__()
 
     def __repr__(self):
-        return self.conn.__repr__()
+        return self.proxied_object.__repr__()
 
     def __nonzero__(self):
         return True
