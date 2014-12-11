@@ -70,7 +70,7 @@ class Executable:
                     break
                 self.logger.warning('AutoReconnecting, try %d (%.1f seconds)'
                                     % (i, delta))
-                time.sleep(pow(2, i))
+                time.sleep(min(5, pow(2, i)))
                 i += 1
         # Try one more time, but this time, if it fails, let the
         # exception bubble up to the caller.
