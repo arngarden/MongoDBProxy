@@ -48,7 +48,12 @@ class Executable:
     def __init__(self, method, logger, wait_time=None):
         self.method = method
         self.logger = logger
-        self.wait_time = wait_time or 60
+        # MongoDB's documentation claims that replicaset elections
+        # shouldn't take more than a minute. In our experience, we've
+        # seen them take as long as a minute and a half, so regardless
+        # of what the documentation says, we're going to give the
+        # connection two minutes to recover.
+        self.wait_time = wait_time or 120
 
     def __call__(self, *args, **kwargs):
         """ Automatic handling of AutoReconnect-exceptions.
@@ -65,7 +70,7 @@ class Executable:
                     break
                 self.logger.warning('AutoReconnecting, try %d (%.1f seconds)'
                                     % (i, delta))
-                time.sleep(pow(2, i))
+                time.sleep(min(5, pow(2, i)))
                 i += 1
         # Try one more time, but this time, if it fails, let the
         # exception bubble up to the caller.
