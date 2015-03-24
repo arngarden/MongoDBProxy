@@ -22,6 +22,7 @@ from pymongo.errors import AutoReconnect, OperationFailure
 # How long we are willing to attempt to reconnect when the replicaset
 # fails over.  We double the delay between each attempt.
 MAX_RECONNECT_TIME = 60
+MAX_SLEEP = 5
 RECONNECT_INITIAL_DELAY = 1
 
 
@@ -57,6 +58,7 @@ class DurableCursor(object):
             initial_reconnect_interval=RECONNECT_INITIAL_DELAY,
             skip=0,
             limit=0,
+            disconnect_on_timeout=True,
             **kwargs):
 
         self.collection = collection
@@ -75,6 +77,7 @@ class DurableCursor(object):
 
         self.counter = self.skip = skip
         self.limit = limit
+        self.disconnect_on_timeout = disconnect_on_timeout
         self.kwargs = kwargs
 
         self.cursor = self.fetch_cursor(self.counter, self.kwargs)
@@ -180,8 +183,11 @@ TODO: Inspect the exc name and only reload the cursor on timeouts.
         be called when trying to recover from an AutoReconnect exception.
         """
         attempts = 0
+        round = 1
         start = time.time()
         interval = self.initial_reconnect_interval
+        disconnected = False
+        max_time = self.max_reconnect_time
 
         while True:
             try:
@@ -191,15 +197,25 @@ TODO: Inspect the exc name and only reload the cursor on timeouts.
 
             # Replica set hasn't come online yet.
             except AutoReconnect:
-                if time.time() - start > self.max_reconnect_time:
-                    break
-                attempts += 1
+                if time.time() - start > max_time:
+                    if not self.disconnect_on_timeout or disconnected:
+                        break
+                    self.cursor.collection.database.connection.disconnect()
+                    disconnected = True
+                    interval = self.initial_reconnect_interval
+                    round = 2
+                    attempts = 0
+                    max_time *= 2
+                    self.logger.warning('Resetting clock for round 2 after '
+                                        'disconnecting')
+                delta = time.time() - start
                 self.logger.warning(
-                    "Reconnect attempt: %i failed, pausing for %d seconds"
-                    % (attempts, interval))
+                    "AutoReconnecting, try %d.%d, (%.1f seconds elapsed)" %
+                    (round, attempts, delta))
                 # Give the database time to reload between attempts.
                 time.sleep(interval)
-                interval *= 2
+                interval = min(interval * 2, MAX_SLEEP)
+                attempts += 1
 
         self.logger.error('Replica set reconnect failed.')
         raise MongoReconnectFailure()
