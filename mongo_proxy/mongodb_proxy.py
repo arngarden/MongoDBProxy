@@ -40,12 +40,25 @@ EXECUTABLE_MONGO_METHODS = get_methods(pymongo.collection.Collection,
                                        pymongo)
 
 
+def get_connection(obj):
+    if isinstance(obj, pymongo.collection.Collection):
+        return obj.database.connection
+    elif isinstance(obj, pymongo.database.Database):
+        return obj.connection
+    elif isinstance(obj, (pymongo.Connection, pymongo.ReplicaSetConnection,
+                          MongoClient, MongoReplicaSetClient)):
+        return obj
+    else:
+        return None
+
+
 class Executable:
     """ Wrap a MongoDB-method and handle AutoReconnect-exceptions
     using the safe_mongocall decorator.
     """
 
-    def __init__(self, method, logger, wait_time=None):
+    def __init__(self, method, logger, wait_time=None,
+                 disconnect_on_timeout=True):
         self.method = method
         self.logger = logger
         # MongoDB's documentation claims that replicaset elections
@@ -53,23 +66,38 @@ class Executable:
         # seen them take as long as a minute and a half, so regardless
         # of what the documentation says, we're going to give the
         # connection two minutes to recover.
-        self.wait_time = wait_time or 120
+        self.wait_time = wait_time or 60
+        self.disconnect_on_timeout = disconnect_on_timeout
 
     def __call__(self, *args, **kwargs):
         """ Automatic handling of AutoReconnect-exceptions.
         """
         start = time.time()
+        round = 1
         i = 0
+        disconnected = False
+        max_time = self.wait_time
         while True:
             try:
                 return self.method(*args, **kwargs)
             except pymongo.errors.AutoReconnect:
                 end = time.time()
                 delta = end - start
-                if delta >= self.wait_time:
-                    break
-                self.logger.warning('AutoReconnecting, try %d (%.1f seconds)'
-                                    % (i, delta))
+                if delta >= max_time:
+                    if not self.disconnect_on_timeout or disconnected:
+                        break
+                    conn = get_connection(self.method.__self__)
+                    if conn:
+                        conn.disconnect()
+                        disconnected = True
+                        max_time *= 2
+                        round = 2
+                        i = 0
+                        self.logger.warning('Resetting clock for round 2 '
+                                            'after disconnecting')
+                self.logger.warning('AutoReconnecting, '
+                                    'try %d.%d (%.1f seconds elapsed)'
+                                    % (round, i, delta))
                 time.sleep(min(5, pow(2, i)))
                 i += 1
         # Try one more time, but this time, if it fails, let the
@@ -91,7 +119,8 @@ class MongoProxy:
     Executable-instance that handles AutoReconnect-exceptions transparently.
 
     """
-    def __init__(self, conn, logger=None, wait_time=None):
+    def __init__(self, conn, logger=None, wait_time=None,
+                 disconnect_on_timeout=True):
         """ conn is an ordinary MongoDB-connection.
 
         """
@@ -102,7 +131,7 @@ class MongoProxy:
         self.conn = conn
         self.logger = logger
         self.wait_time = wait_time
-
+        self.disconnect_on_timeout = disconnect_on_timeout
 
     def __getitem__(self, key):
         """ Create and return proxy around the method in the connection

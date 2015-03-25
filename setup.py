@@ -37,7 +37,7 @@ except ImportError:
 
 setup(
     name='MongoDBProxy',
-    py_modules=['mongodb_proxy'],
+    packages=find_packages(),
     version='0.1.0',
     description='Proxy around MongoDB connection that automatically handles AutoReconnect exceptions.',
     author='Gustav Arngarden',
