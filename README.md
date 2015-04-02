@@ -10,9 +10,9 @@ Usage:
 
 import pymongo
 
-import mongodb_proxy
+import mongo_proxy
 
-safe_conn = mongodb_proxy.MongoProxy(pymongo.MongoReplicaSetClient(replicaSet='blog_rs')
+safe_conn = mongo_proxy.MongoProxy(pymongo.MongoReplicaSetClient(replicaSet='blog_rs')
 
 safe_conn.blogs.posts.insert(post)
 
