@@ -32,10 +32,15 @@ try:
 except ImportError:
     MongoClient, MongoReplicaSetClient = None, None
 
+try:
+    from pymongo import Connection, ReplicaSetConnection
+except ImportError:
+    Connection, ReplicaSetConnection = None, None
+
 EXECUTABLE_MONGO_METHODS = get_methods(pymongo.collection.Collection,
                                        pymongo.database.Database,
-                                       pymongo.Connection,
-                                       pymongo.ReplicaSetConnection,
+                                       Connection,
+                                       ReplicaSetConnection,
                                        MongoClient, MongoReplicaSetClient,
                                        pymongo)
 
@@ -45,7 +50,7 @@ def get_connection(obj):
         return obj.database.connection
     elif isinstance(obj, pymongo.database.Database):
         return obj.connection
-    elif isinstance(obj, (pymongo.Connection, pymongo.ReplicaSetConnection,
+    elif isinstance(obj, (Connection, ReplicaSetConnection,
                           MongoClient, MongoReplicaSetClient)):
         return obj
     else:
