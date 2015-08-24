@@ -150,7 +150,10 @@ OperationFailure exception catches a lot of failure cases.
 The current exception is actually:
 {exc}
 TODO: Inspect the exc name and only reload the cursor on timeouts.
-""".strip().format(exc=exc))
+
+The query spec that timed out was:
+{spec}
+""".strip().format(exc=exc, spec=self.spec))
 
             # Try to reload the cursor and continue where we left off
             self.reload_cursor()
