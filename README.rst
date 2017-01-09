@@ -14,11 +14,11 @@ Usage::
     >>> safe_conn.blogs.posts.insert(post)  # Automatically handles AutoReconnect.
 
 **See here for more details:**
-`http://www.arngarden.com/2013/04/29/handling-mongodb-autoreconnect-exceptions-in-python-using-a-proxy/`_
+`<http://www.arngarden.com/2013/04/29/handling-mongodb-autoreconnect-exceptions-in-python-using-a-proxy/>`_
 
 **Contributors**:
 
-- Jonathan Kamens (`https://github.com/jikamens`_)
-- Michael Cetrulo (`https://github.com/git2samus`_)
-- Richard Frank (`https://github.com/richafrank`_)
-- David Lindquist (`https://github.com/dlindquist`_)
+- Jonathan Kamens (`<https://github.com/jikamens>`_)
+- Michael Cetrulo (`<https://github.com/git2samus>`_)
+- Richard Frank (`<https://github.com/richafrank>`_)
+- David Lindquist (`<https://github.com/dlindquist>`_)
