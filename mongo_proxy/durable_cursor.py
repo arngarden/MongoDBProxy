@@ -17,13 +17,23 @@ Copyright 2015 Quantopian Inc.
 import logging
 import sys
 import time
-from pymongo.errors import AutoReconnect, ExecutionTimeout, WTimeoutError
+from pymongo.errors import (
+    AutoReconnect,
+    CursorNotFound,
+    ExecutionTimeout,
+    WTimeoutError,
+)
 
 # How long we are willing to attempt to reconnect when the replicaset
 # fails over.  We double the delay between each attempt.
 MAX_RECONNECT_TIME = 60
 MAX_SLEEP = 5
 RECONNECT_INITIAL_DELAY = 1
+RETRYABLE_OPERATIONAL_ERROR = (
+    CursorNotFound,
+    ExecutionTimeout,
+    WTimeoutError,
+)
 
 
 class MongoReconnectFailure(Exception):
@@ -139,7 +149,7 @@ class DurableCursor(object):
     def next(self):
         try:
             next_record = self.cursor.next()
-        except (ExecutionTimeout, WTimeoutError) as exc:
+        except RETRYABLE_OPERATIONAL_ERROR as exc:
             self.logger.info("""
 Attempting to handle cursor timeout.
 Error was:
