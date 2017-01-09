@@ -17,13 +17,23 @@ Copyright 2015 Quantopian Inc.
 import logging
 import sys
 import time
-from pymongo.errors import AutoReconnect, OperationFailure
+from pymongo.errors import (
+    AutoReconnect,
+    CursorNotFound,
+    ExecutionTimeout,
+    WTimeoutError,
+)
 
 # How long we are willing to attempt to reconnect when the replicaset
 # fails over.  We double the delay between each attempt.
 MAX_RECONNECT_TIME = 60
 MAX_SLEEP = 5
 RECONNECT_INITIAL_DELAY = 1
+RETRYABLE_OPERATIONAL_ERROR = (
+    CursorNotFound,
+    ExecutionTimeout,
+    WTimeoutError,
+)
 
 
 class MongoReconnectFailure(Exception):
@@ -139,18 +149,14 @@ class DurableCursor(object):
     def next(self):
         try:
             next_record = self.cursor.next()
-
-        # OperationFailure is raised when an operation fails inside
-        # the remote DB.  This most commonly occurs when our cursor
-        # has been inactive for 10 minutes or more.
-        except OperationFailure as exc:
+        except RETRYABLE_OPERATIONAL_ERROR as exc:
             self.logger.info("""
 Attempting to handle cursor timeout.
-OperationFailure exception catches a lot of failure cases.
-The current exception is actually:
+Error was:
 {exc}
-TODO: Inspect the exc name and only reload the cursor on timeouts.
-""".strip().format(exc=exc))
+The query spec that timed out was:
+{spec}
+""".strip().format(exc=exc, spec=self.spec))
 
             # Try to reload the cursor and continue where we left off
             self.reload_cursor()
