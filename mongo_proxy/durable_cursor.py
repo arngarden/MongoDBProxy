@@ -21,6 +21,7 @@ from pymongo.errors import (
     AutoReconnect,
     CursorNotFound,
     ExecutionTimeout,
+    OperationFailure,
     WTimeoutError,
 )
 
@@ -29,7 +30,8 @@ from pymongo.errors import (
 MAX_RECONNECT_TIME = 60
 MAX_SLEEP = 5
 RECONNECT_INITIAL_DELAY = 1
-RETRYABLE_OPERATIONAL_ERROR = (
+RETRYABLE_OPERATION_FAILURE_CLASSES = (
+    AutoReconnect,
     CursorNotFound,
     ExecutionTimeout,
     WTimeoutError,
@@ -149,25 +151,15 @@ class DurableCursor(object):
     def next(self):
         try:
             next_record = self.cursor.next()
-        except RETRYABLE_OPERATIONAL_ERROR as exc:
-            self.logger.info("""
-Attempting to handle cursor timeout.
-Error was:
-{exc}
-The query spec that timed out was:
-{spec}
-""".strip().format(exc=exc, spec=self.spec))
+        except RETRYABLE_OPERATION_FAILURE_CLASSES as exc:
+            # AutoReconnect is raised when the primary node fails and we
+            # attempt to reconnect to the replica set.
+            self.logger.info(
+                "Got {}; attempting recovery. The query spec was: {}",
+                exc, self.spec
+            )
 
             # Try to reload the cursor and continue where we left off
-            self.reload_cursor()
-            next_record = self.cursor.next()
-            self.logger.info("Cursor reload after timeout successful.")
-
-        # AutoReconnect is raised when the primary node fails and we
-        # attempt to reconnect to the replica set.
-        except AutoReconnect:
-            self.logger.info("Got AutoReconnect; attempting recovery",
-                             exc_info=sys.exc_info())
 
             # Try for up to self.max_reconnect_time to reconnect to
             # the replicaset before giving up.  If the reconnect is
@@ -175,6 +167,19 @@ The query spec that timed out was:
             # next record to return. Otherwise we return (False,
             # None).
             next_record = self.try_reconnect()
+            self.logger.info("Cursor reload after {} successful.", exc)
+
+        except OperationFailure as exc:
+            # No special subclass for this:
+            if 'interrupted at shutdown' in str(exc.args[0]):
+                self.logger.info(
+                    "Got {}; attempting recovery. The query spec was: {}",
+                    exc, self.spec
+                )
+                next_record = self.try_reconnect()
+                self.logger.info("Cursor reload after {} successful.", exc)
+            else:
+                raise
 
         # Increment count before returning so we know how many records
         # to skip if a failure occurs later.
