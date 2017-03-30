@@ -17,14 +17,15 @@ Copyright 2013 Gustav Arngarden
 import time
 import pymongo
 
+
 def get_methods(*objs):
     return set(
         attr
         for obj in objs
         for attr in dir(obj)
-        if not attr.startswith('_')
-           and hasattr(getattr(obj, attr), '__call__')
+        if not attr.startswith('_') and hasattr(getattr(obj, attr), '__call__')
     )
+
 
 try:
     # will fail to import from older versions of pymongo
