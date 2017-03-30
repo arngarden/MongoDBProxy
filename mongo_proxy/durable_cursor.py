@@ -148,7 +148,7 @@ class DurableCursor(object):
         return self.tailable and self.cursor.alive
 
     def next(self):
-        next_record = self._with_retry(True, self.cursor.next)
+        next_record = self._with_retry(get_next=True, f=self.cursor.next)
         # Increment count before returning so we know how many records
         # to skip if a failure occurs later.
         self.counter += 1
@@ -236,7 +236,7 @@ class DurableCursor(object):
 
     def count(self, with_limit_and_skip=False):
         return self._with_retry(
-            False,
-            self.cursor.count,
+            get_next=False,
+            f=self.cursor.count,
             with_limit_and_skip=with_limit_and_skip,
         )
