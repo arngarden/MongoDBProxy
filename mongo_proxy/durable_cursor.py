@@ -159,22 +159,24 @@ class DurableCursor(object):
             next_record = f(*args, **kwargs)
         except RETRYABLE_OPERATION_FAILURE_CLASSES as exc:
             self.logger.info(
-                "Got {!r}; attempting recovery. The query spec was: {}",
-                exc, self.spec
+                "Got {!r}; attempting recovery. The query spec was: {}"
+                .format(exc, self.spec)
             )
             # Try to reload the cursor and continue where we left off
             next_record = self.try_reconnect(get_next=get_next)
-            self.logger.info("Cursor reload after {!r} successful.", exc)
+            self.logger.info("Cursor reload after {!r} successful."
+                             .format(exc))
 
         except OperationFailure as exc:
             # No special subclass for this:
             if 'interrupted at shutdown' in str(exc.args[0]):
                 self.logger.info(
-                    "Got {!r}; attempting recovery. The query spec was: {}",
-                    exc, self.spec
+                    "Got {!r}; attempting recovery. The query spec was: {}"
+                    .format(exc, self.spec)
                 )
                 next_record = self.try_reconnect(get_next=get_next)
-                self.logger.info("Cursor reload after {!r} successful.", exc)
+                self.logger.info("Cursor reload after {!r} successful."
+                                 .format(exc))
             else:
                 raise
 
