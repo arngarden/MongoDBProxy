@@ -15,7 +15,6 @@ Copyright 2015 Quantopian Inc.
 """
 
 import logging
-import sys
 import time
 from pymongo.errors import (
     AutoReconnect,
