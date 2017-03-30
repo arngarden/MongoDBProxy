@@ -148,8 +148,15 @@ class DurableCursor(object):
         return self.tailable and self.cursor.alive
 
     def next(self):
+        next_record = self._with_retry(True, self.cursor.next)
+        # Increment count before returning so we know how many records
+        # to skip if a failure occurs later.
+        self.counter += 1
+        return next_record
+
+    def _with_retry(self, get_next, f, *args, **kwargs):
         try:
-            next_record = self.cursor.next()
+            next_record = f(*args, **kwargs)
         except RETRYABLE_OPERATION_FAILURE_CLASSES as exc:
             # AutoReconnect is raised when the primary node fails and we
             # attempt to reconnect to the replica set.
@@ -165,7 +172,7 @@ class DurableCursor(object):
             # successful, we return success == True along with the
             # next record to return. Otherwise we return (False,
             # None).
-            next_record = self.try_reconnect()
+            next_record = self.try_reconnect(get_next=get_next)
             self.logger.info("Cursor reload after {} successful.", exc)
 
         except OperationFailure as exc:
@@ -175,14 +182,11 @@ class DurableCursor(object):
                     "Got {}; attempting recovery. The query spec was: {}",
                     exc, self.spec
                 )
-                next_record = self.try_reconnect()
+                next_record = self.try_reconnect(get_next=get_next)
                 self.logger.info("Cursor reload after {} successful.", exc)
             else:
                 raise
 
-        # Increment count before returning so we know how many records
-        # to skip if a failure occurs later.
-        self.counter += 1
         return next_record
 
     def try_reconnect(self, get_next=True):
@@ -231,9 +235,8 @@ class DurableCursor(object):
         raise MongoReconnectFailure()
 
     def count(self, with_limit_and_skip=False):
-        while True:
-            try:
-                return self.cursor.count(
-                    with_limit_and_skip=with_limit_and_skip)
-            except AutoReconnect:
-                self.try_reconnect(get_next=False)
+        return self._with_retry(
+            False,
+            self.cursor.count,
+            with_limit_and_skip=with_limit_and_skip,
+        )
