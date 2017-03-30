@@ -30,7 +30,7 @@ MAX_RECONNECT_TIME = 60
 MAX_SLEEP = 5
 RECONNECT_INITIAL_DELAY = 1
 RETRYABLE_OPERATION_FAILURE_CLASSES = (
-    AutoReconnect,
+    AutoReconnect,  # AutoReconnect is raised when the primary node fails
     CursorNotFound,
     ExecutionTimeout,
     WTimeoutError,
@@ -158,20 +158,11 @@ class DurableCursor(object):
         try:
             next_record = f(*args, **kwargs)
         except RETRYABLE_OPERATION_FAILURE_CLASSES as exc:
-            # AutoReconnect is raised when the primary node fails and we
-            # attempt to reconnect to the replica set.
             self.logger.info(
                 "Got {!r}; attempting recovery. The query spec was: {}",
                 exc, self.spec
             )
-
             # Try to reload the cursor and continue where we left off
-
-            # Try for up to self.max_reconnect_time to reconnect to
-            # the replicaset before giving up.  If the reconnect is
-            # successful, we return success == True along with the
-            # next record to return. Otherwise we return (False,
-            # None).
             next_record = self.try_reconnect(get_next=get_next)
             self.logger.info("Cursor reload after {!r} successful.", exc)
 
