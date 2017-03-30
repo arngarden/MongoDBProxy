@@ -161,7 +161,7 @@ class DurableCursor(object):
             # AutoReconnect is raised when the primary node fails and we
             # attempt to reconnect to the replica set.
             self.logger.info(
-                "Got {}; attempting recovery. The query spec was: {}",
+                "Got {!r}; attempting recovery. The query spec was: {}",
                 exc, self.spec
             )
 
@@ -173,17 +173,17 @@ class DurableCursor(object):
             # next record to return. Otherwise we return (False,
             # None).
             next_record = self.try_reconnect(get_next=get_next)
-            self.logger.info("Cursor reload after {} successful.", exc)
+            self.logger.info("Cursor reload after {!r} successful.", exc)
 
         except OperationFailure as exc:
             # No special subclass for this:
             if 'interrupted at shutdown' in str(exc.args[0]):
                 self.logger.info(
-                    "Got {}; attempting recovery. The query spec was: {}",
+                    "Got {!r}; attempting recovery. The query spec was: {}",
                     exc, self.spec
                 )
                 next_record = self.try_reconnect(get_next=get_next)
-                self.logger.info("Cursor reload after {} successful.", exc)
+                self.logger.info("Cursor reload after {!r} successful.", exc)
             else:
                 raise
 
