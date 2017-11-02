@@ -147,12 +147,14 @@ class DurableCursor(object):
     def alive(self):
         return self.tailable and self.cursor.alive
 
-    def next(self):
-        next_record = self._with_retry(get_next=True, f=self.cursor.next)
+    def __next__(self):
+        next_record = self._with_retry(get_next=True, f=lambda: next(self.cursor))
         # Increment count before returning so we know how many records
         # to skip if a failure occurs later.
         self.counter += 1
         return next_record
+
+    next = __next__
 
     def _with_retry(self, get_next, f, *args, **kwargs):
         try:
@@ -200,7 +202,7 @@ class DurableCursor(object):
             try:
                 # Attempt to reload and get the next batch.
                 self.reload_cursor()
-                return self.cursor.next() if get_next else True
+                return next(self.cursor) if get_next else True
 
             # Replica set hasn't come online yet.
             except AutoReconnect:
