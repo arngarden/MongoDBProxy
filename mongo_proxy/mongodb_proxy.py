@@ -17,14 +17,15 @@ Copyright 2013 Gustav Arngarden
 import time
 import pymongo
 
+
 def get_methods(*objs):
     return set(
         attr
         for obj in objs
         for attr in dir(obj)
-        if not attr.startswith('_')
-           and hasattr(getattr(obj, attr), '__call__')
+        if not attr.startswith('_') and hasattr(getattr(obj, attr), '__call__')
     )
+
 
 try:
     # will fail to import from older versions of pymongo
@@ -57,7 +58,7 @@ def get_connection(obj):
         return None
 
 
-class Executable:
+class Executable(object):
     """ Wrap a MongoDB-method and handle AutoReconnect-exceptions
     using the safe_mongocall decorator.
     """
@@ -118,7 +119,8 @@ class Executable:
     def __repr__(self):
         return self.method.__repr__()
 
-class MongoProxy:
+
+class MongoProxy(object):
     """ Proxy for MongoDB connection.
     Methods that are executable, i.e find, insert etc, get wrapped in an
     Executable-instance that handles AutoReconnect-exceptions transparently.

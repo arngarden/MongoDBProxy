@@ -15,15 +15,26 @@ Copyright 2015 Quantopian Inc.
 """
 
 import logging
-import sys
 import time
-from pymongo.errors import AutoReconnect, OperationFailure
+from pymongo.errors import (
+    AutoReconnect,
+    CursorNotFound,
+    ExecutionTimeout,
+    OperationFailure,
+    WTimeoutError,
+)
 
 # How long we are willing to attempt to reconnect when the replicaset
 # fails over.  We double the delay between each attempt.
 MAX_RECONNECT_TIME = 60
 MAX_SLEEP = 5
 RECONNECT_INITIAL_DELAY = 1
+RETRYABLE_OPERATION_FAILURE_CLASSES = (
+    AutoReconnect,  # AutoReconnect is raised when the primary node fails
+    CursorNotFound,
+    ExecutionTimeout,
+    WTimeoutError,
+)
 
 
 class MongoReconnectFailure(Exception):
@@ -136,46 +147,41 @@ class DurableCursor(object):
     def alive(self):
         return self.tailable and self.cursor.alive
 
-    def next(self):
-        try:
-            next_record = self.cursor.next()
-
-        # OperationFailure is raised when an operation fails inside
-        # the remote DB.  This most commonly occurs when our cursor
-        # has been inactive for 10 minutes or more.
-        except OperationFailure as exc:
-            self.logger.info("""
-Attempting to handle cursor timeout.
-OperationFailure exception catches a lot of failure cases.
-The current exception is actually:
-{exc}
-TODO: Inspect the exc name and only reload the cursor on timeouts.
-
-The query spec that timed out was:
-{spec}
-""".strip().format(exc=exc, spec=self.spec))
-
-            # Try to reload the cursor and continue where we left off
-            self.reload_cursor()
-            next_record = self.cursor.next()
-            self.logger.info("Cursor reload after timeout successful.")
-
-        # AutoReconnect is raised when the primary node fails and we
-        # attempt to reconnect to the replica set.
-        except AutoReconnect:
-            self.logger.info("Got AutoReconnect; attempting recovery",
-                             exc_info=sys.exc_info())
-
-            # Try for up to self.max_reconnect_time to reconnect to
-            # the replicaset before giving up.  If the reconnect is
-            # successful, we return success == True along with the
-            # next record to return. Otherwise we return (False,
-            # None).
-            next_record = self.try_reconnect()
-
+    def __next__(self):
+        next_record = self._with_retry(get_next=True, f=lambda: next(self.cursor))
         # Increment count before returning so we know how many records
         # to skip if a failure occurs later.
         self.counter += 1
+        return next_record
+
+    next = __next__
+
+    def _with_retry(self, get_next, f, *args, **kwargs):
+        try:
+            next_record = f(*args, **kwargs)
+        except RETRYABLE_OPERATION_FAILURE_CLASSES as exc:
+            self.logger.info(
+                "Got {!r}; attempting recovery. The query spec was: {}"
+                .format(exc, self.spec)
+            )
+            # Try to reload the cursor and continue where we left off
+            next_record = self.try_reconnect(get_next=get_next)
+            self.logger.info("Cursor reload after {!r} successful."
+                             .format(exc))
+
+        except OperationFailure as exc:
+            # No special subclass for this:
+            if 'interrupted at shutdown' in str(exc.args[0]):
+                self.logger.info(
+                    "Got {!r}; attempting recovery. The query spec was: {}"
+                    .format(exc, self.spec)
+                )
+                next_record = self.try_reconnect(get_next=get_next)
+                self.logger.info("Cursor reload after {!r} successful."
+                                 .format(exc))
+            else:
+                raise
+
         return next_record
 
     def try_reconnect(self, get_next=True):
@@ -196,7 +202,7 @@ The query spec that timed out was:
             try:
                 # Attempt to reload and get the next batch.
                 self.reload_cursor()
-                return self.cursor.next() if get_next else True
+                return next(self.cursor) if get_next else True
 
             # Replica set hasn't come online yet.
             except AutoReconnect:
@@ -224,9 +230,8 @@ The query spec that timed out was:
         raise MongoReconnectFailure()
 
     def count(self, with_limit_and_skip=False):
-        while True:
-            try:
-                return self.cursor.count(
-                    with_limit_and_skip=with_limit_and_skip)
-            except AutoReconnect:
-                self.try_reconnect(get_next=False)
+        return self._with_retry(
+            get_next=False,
+            f=self.cursor.count,
+            with_limit_and_skip=with_limit_and_skip,
+        )
