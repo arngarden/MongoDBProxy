@@ -1,7 +1,8 @@
+# -*- coding: utf-8 -*-
 """
 Cursor that handles AutoReconnect, NetworkTimeout & NotMasterError problems
 when iterating over values and replicate set elections happen.
-(e.g. database nodes crash)
+(node crash or shutdown)
 
 Copyright 2018 IQ Payments Oy
 
