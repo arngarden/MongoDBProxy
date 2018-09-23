@@ -55,7 +55,7 @@ class PyMongo3DurableCursor(Cursor):
         self.retry_cursor = None
 
         if self.iterator_count:
-            kwargs['skip'] += self.iterator_count
+            kwargs['skip'] = kwargs.get('skip', 0) + self.iterator_count
 
         super(PyMongo3DurableCursor, self).__init__(*args, **kwargs)
 
