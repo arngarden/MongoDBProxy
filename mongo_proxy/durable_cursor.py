@@ -23,6 +23,7 @@ from pymongo.errors import (
     OperationFailure,
     WTimeoutError,
 )
+from pymongo import CursorType
 
 # How long we are willing to attempt to reconnect when the replicaset
 # fails over.  We double the delay between each attempt.
@@ -59,10 +60,9 @@ class DurableCursor(object):
     def __init__(
             self,
             collection,
-            spec=None,
-            fields=None,
+            filter=None,
+            projection=None,
             sort=None,
-            slave_okay=True,
             hint=None,
             tailable=False,
             max_reconnect_time=MAX_RECONNECT_TIME,
@@ -73,12 +73,11 @@ class DurableCursor(object):
             **kwargs):
 
         self.collection = collection
-        self.spec = spec
-        self.fields = fields
+        self.filter = filter
+        self.projection = projection
         self.sort = sort
-        self.slave_okay = slave_okay
         self.hint = hint
-        self.tailable = tailable
+        self.cursor_type = CursorType.TAILABLE if tailable else CursorType.NON_TAILABLE
 
         # The number of times we attempt to reconnect to a replica set.
         self.max_reconnect_time = max_reconnect_time
@@ -117,11 +116,10 @@ class DurableCursor(object):
             limit = 0
 
         cursor = self.collection.find(
-            spec=self.spec,
-            fields=self.fields,
+            filter=self.filter,
+            projection=self.projection,
             sort=self.sort,
-            slave_okay=self.slave_okay,
-            tailable=self.tailable,
+            cursor_type=self.cursor_type,
             skip=count,
             limit=limit,
             hint=self.hint,
@@ -161,8 +159,8 @@ class DurableCursor(object):
             next_record = f(*args, **kwargs)
         except RETRYABLE_OPERATION_FAILURE_CLASSES as exc:
             self.logger.info(
-                "Got {!r}; attempting recovery. The query spec was: {}"
-                .format(exc, self.spec)
+                "Got {!r}; attempting recovery. The query filter was: {}"
+                .format(exc, self.filter)
             )
             # Try to reload the cursor and continue where we left off
             next_record = self.try_reconnect(get_next=get_next)
@@ -173,8 +171,8 @@ class DurableCursor(object):
             # No special subclass for this:
             if 'interrupted at shutdown' in str(exc.args[0]):
                 self.logger.info(
-                    "Got {!r}; attempting recovery. The query spec was: {}"
-                    .format(exc, self.spec)
+                    "Got {!r}; attempting recovery. The query filter was: {}"
+                    .format(exc, self.filter)
                 )
                 next_record = self.try_reconnect(get_next=get_next)
                 self.logger.info("Cursor reload after {!r} successful."
