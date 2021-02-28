@@ -20,7 +20,7 @@ with open('README.rst') as readme_file:
     LONG_DESCRIPTION = readme_file.read()
 
 setup(
-    name='MongoDBProxy',
+    name='MongoDBProxy-official',
     packages=find_packages(),
     version='0.1.0',
     description='Proxy around MongoDB connection that automatically handles AutoReconnect exceptions.',
