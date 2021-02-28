@@ -13,6 +13,7 @@ Usage::
     >>> safe_conn = mongo_proxy.MongoProxy(pymongo.MongoReplicaSetClient(replicaSet='blog_rs')
     >>> safe_conn.blogs.posts.insert(post)  # Automatically handles AutoReconnect.
 
+
 **See here for more details:**
 `<http://www.arngarden.com/2013/04/29/handling-mongodb-autoreconnect-exceptions-in-python-using-a-proxy/>`_
 
@@ -22,3 +23,8 @@ Usage::
 - Michael Cetrulo (`<https://github.com/git2samus>`_)
 - Richard Frank (`<https://github.com/richafrank>`_)
 - David Lindquist (`<https://github.com/dlindquist>`_)
+
+Installation
+------------
+
+pip3 install MongoDBProxy-official
