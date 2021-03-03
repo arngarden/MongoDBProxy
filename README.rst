@@ -10,7 +10,7 @@ Usage::
 
     >>> import pymongo
     >>> import mongo_proxy
-    >>> safe_conn = mongo_proxy.MongoProxy(pymongo.MongoReplicaSetClient(replicaSet='blog_rs')
+    >>> safe_conn = mongo_proxy.MongoProxy(pymongo.MongoReplicaSetClient(replicaSet='blog_rs'))
     >>> safe_conn.blogs.posts.insert(post)  # Automatically handles AutoReconnect.
 
 
