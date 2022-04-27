@@ -28,7 +28,7 @@ import time
 from pymongo.cursor import Cursor
 from pymongo.errors import AutoReconnect
 from pymongo.errors import NetworkTimeout
-from pymongo.errors import NotMasterError
+from pymongo.errors import NotPrimaryError
 
 logger = logging.getLogger(__name__)
 MAX_ATTEMPTS = 15
