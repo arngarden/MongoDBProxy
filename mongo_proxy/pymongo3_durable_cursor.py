@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Cursor that handles AutoReconnect, NetworkTimeout & NotMasterError problems
+Cursor that handles AutoReconnect, NetworkTimeout & NotPrimaryError problems
 when iterating over values and replicate set elections happen.
 (node crash or shutdown)
 
@@ -28,7 +28,7 @@ import time
 from pymongo.cursor import Cursor
 from pymongo.errors import AutoReconnect
 from pymongo.errors import NetworkTimeout
-from pymongo.errors import NotMasterError
+from pymongo.errors import NotPrimaryError
 
 logger = logging.getLogger(__name__)
 MAX_ATTEMPTS = 15
@@ -71,7 +71,7 @@ class PyMongo3DurableCursor(Cursor):
             self.iterator_count += 1
             self.retry_attempt = 0  # Works (again), reset counter
             return next_item
-        except (AutoReconnect, NetworkTimeout, NotMasterError) as exception:
+        except (AutoReconnect, NetworkTimeout, NotPrimaryError) as exception:
             self.retry_attempt += 1
             if self.retry_attempt > MAX_ATTEMPTS:
                 raise TooManyRetries('Failed too many times.')
